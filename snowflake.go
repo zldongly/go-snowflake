@@ -1,8 +1,14 @@
 package snowflake
 
 import (
+    "errors"
     "sync"
     "time"
+)
+
+var (
+    ErrBitSizeOutOfRange   = errors.New("snowflake: configure bit size out of range") // bit 值和超过63字节
+    ErrMachineIdOutOfRange = errors.New("snowflake: MachineId out of range")          // machineId 超出所给 machine bit 范围
 )
 
 type config struct {
@@ -12,9 +18,7 @@ type config struct {
     timeShift    uint8 // 时间
     machineShift uint8 // 设备号
 
-    timeMax    int64
-    machineMax int64
-    stepMax    int64
+    stepMax int64
 }
 
 type node struct {
@@ -33,12 +37,18 @@ func NewNode(timeBits, machineBits, stepBits uint8, machineId int64, epoch time.
         timeShift:    machineBits + stepBits,
         machineShift: stepBits,
 
-        timeMax:    -1 ^ (-1 << timeBits),
-        machineMax: -1 ^ (-1 << machineBits),
-        stepMax:    -1 ^ (-1 << stepBits),
+        stepMax: -1 ^ (-1 << stepBits),
     }
 
-    // TODO 2020/7/27 21:45 判断 bit 大小和 machineId
+    // 判断 bit 大小判断
+    if timeBits+machineBits+stepBits > 63 {
+        return node{}, ErrBitSizeOutOfRange
+    }
+
+    // machineId 范围判断
+    if machineMax := int64(-1 ^ (-1 << machineBits)); machineMax < machineId {
+        return node{}, ErrMachineIdOutOfRange
+    }
 
     return node{
             conf:      conf,
